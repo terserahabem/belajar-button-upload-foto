@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Galeri Foto</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      padding: 24px 16px;
+      background: #fafafa;
+      color: #222;
+      text-align: center;
+    }
+    h1 { margin: 0 0 16px; }
+    button {
+      background: #e11d48;
+      color: white;
+      border: 0;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    #status { min-height: 24px; margin: 12px 0; color: #555; }
+    #galeri {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    #galeri img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 8px;
+      background: #eee;
+    }
+  </style>
+</head>
+<body>
+  <h1>Galeri Foto</h1>
+
+  <input type="file" id="inputFoto" accept="image/*" multiple hidden>
+  <button id="tombolUpload" type="button">+ Upload Foto</button>
+  <p id="status"></p>
+
+  <div id="galeri"></div>
+
+  <script>
+    const tombol = document.getElementById('tombolUpload');
+    const input = document.getElementById('inputFoto');
+    const status = document.getElementById('status');
+    const galeri = document.getElementById('galeri');
+
+    // Tombol membuka jendela pilih file
+    tombol.addEventListener('click', () => input.click());
+
+    // Ambil daftar foto dari server dan tampilkan
+    async function muatGaleri() {
+      try {
+        const res = await fetch('/api/photos');
+        if (!res.ok) throw new Error('gagal');
+        const foto = await res.json();
+        galeri.innerHTML = '';
+        for (const f of foto) {
+          const img = document.createElement('img');
+          img.src = f.url;
+          img.loading = 'lazy';
+          galeri.appendChild(img);
+        }
+      } catch (err) {
+        status.textContent = 'Gagal memuat galeri.';
+      }
+    }
+
+    // Kecilkan foto supaya di bawah batas 4,5 MB dari Vercel
+    function kecilkan(file, maxSisi = 1600, kualitas = 0.85) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          const skala = Math.min(1, maxSisi / Math.max(img.width, img.height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * skala);
+          canvas.height = Math.round(img.height * skala);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          canvas.toBlob(
+            (b) => (b ? resolve(b) : reject(new Error('gagal'))),
+            'image/jpeg',
+            kualitas
+          );
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Bukan gambar yang valid'));
+        };
+        img.src = url;
+      });
+    }
+
+    // Setelah foto dipilih: kecilkan, kirim satu per satu, lalu muat ulang galeri
+    input.addEventListener('change', async () => {
+      const files = Array.from(input.files);
+      if (!files.length) return;
+      tombol.disabled = true;
+      let gagal = 0;
+
+      for (let i = 0; i < files.length; i++) {
+        status.textContent = `Mengunggah ${i + 1} dari ${files.length}...`;
+        try {
+          const blob = await kecilkan(files[i]);
+          const nama = files[i].name.replace(/\.\w+$/, '') + '.jpg';
+          const res = await fetch('/api/photos?filename=' + encodeURIComponent(nama), {
+            method: 'POST',
+            headers: { 'Content-Type': 'image/jpeg' },
+            body: blob
+          });
+          if (!res.ok) gagal++;
+        } catch (err) {
+          gagal++;
+        }
+      }
+
+      input.value = '';
+      tombol.disabled = false;
+      status.textContent = gagal ? `${gagal} foto gagal diunggah.` : 'Selesai!';
+      muatGaleri();
+    });
+
+    muatGaleri();
+  </script>
+</body>
+</html>
