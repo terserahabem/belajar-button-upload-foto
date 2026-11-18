@@ -1,3 +1,5 @@
+Coding Baru
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -15,6 +17,7 @@
       text-align: center;
     }
     h1 { margin: 0 0 16px; }
+    h2 { margin: 0 0 16px; }
     button {
       background: #e11d48;
       color: white;
@@ -25,6 +28,7 @@
       cursor: pointer;
     }
     button:disabled { opacity: 0.6; cursor: wait; }
+    .btn-batal { background: #6b7280; }
     #status { min-height: 24px; margin: 12px 0; color: #555; }
     #galeri {
       display: grid;
@@ -40,6 +44,47 @@
       border-radius: 8px;
       background: #eee;
     }
+
+    /* ---- Catatan ---- */
+    .bagian-catatan {
+      max-width: 600px;
+      margin: 48px auto 0;
+    }
+    #formCatatan { margin-top: 16px; text-align: left; }
+    #isiCatatan {
+      width: 100%;
+      min-height: 120px;
+      padding: 12px;
+      font: inherit;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      resize: vertical;
+    }
+    .aksi-form {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
+    #statusCatatan { min-height: 24px; margin: 12px 0; color: #555; }
+    #daftarCatatan {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      text-align: left;
+    }
+    .catatan {
+      background: white;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .catatan-isi {
+      margin: 0 0 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .catatan-waktu { font-size: 13px; color: #777; }
   </style>
 </head>
 <body>
@@ -51,7 +96,25 @@
 
   <div id="galeri"></div>
 
+  <!-- Bagian catatan -->
+  <div class="bagian-catatan">
+    <h2>Catatan Aku dan Kamu</h2>
+    <button id="tombolCatatan" type="button">+ Tambah Catatan</button>
+
+    <form id="formCatatan" hidden>
+      <textarea id="isiCatatan" maxlength="1000" placeholder="Tulis catatan di sini..." required></textarea>
+      <div class="aksi-form">
+        <button type="button" id="batalCatatan" class="btn-batal">Batal</button>
+        <button type="submit" id="simpanCatatan">Simpan</button>
+      </div>
+    </form>
+
+    <p id="statusCatatan"></p>
+    <div id="daftarCatatan"></div>
+  </div>
+
   <script>
+    /* ================= FOTO ================= */
     const tombol = document.getElementById('tombolUpload');
     const input = document.getElementById('inputFoto');
     const status = document.getElementById('status');
@@ -134,6 +197,95 @@
     });
 
     muatGaleri();
+
+    /* ================= CATATAN ================= */
+    const tombolCatatan = document.getElementById('tombolCatatan');
+    const formCatatan = document.getElementById('formCatatan');
+    const isiCatatan = document.getElementById('isiCatatan');
+    const simpanCatatan = document.getElementById('simpanCatatan');
+    const batalCatatan = document.getElementById('batalCatatan');
+    const statusCatatan = document.getElementById('statusCatatan');
+    const daftarCatatan = document.getElementById('daftarCatatan');
+
+    // Klik "+ Tambah Catatan": tampilkan kotak catatan kosong
+    tombolCatatan.addEventListener('click', () => {
+      isiCatatan.value = '';
+      formCatatan.hidden = false;
+      tombolCatatan.hidden = true;
+      isiCatatan.focus();
+    });
+
+    function tutupForm() {
+      formCatatan.hidden = true;
+      tombolCatatan.hidden = false;
+      isiCatatan.value = '';
+    }
+
+    batalCatatan.addEventListener('click', tutupForm);
+
+    // Ambil semua catatan dari server dan tampilkan beserta tanggal dan waktunya
+    async function muatCatatan() {
+      try {
+        const res = await fetch('/api/catatan');
+        if (!res.ok) throw new Error('gagal');
+        const data = await res.json();
+        daftarCatatan.innerHTML = '';
+
+        if (!data.length) {
+          statusCatatan.textContent = 'Belum ada catatan.';
+          return;
+        }
+        statusCatatan.textContent = '';
+
+        for (const c of data) {
+          const kartu = document.createElement('div');
+          kartu.className = 'catatan';
+
+          const isi = document.createElement('p');
+          isi.className = 'catatan-isi';
+          isi.textContent = c.isi;
+
+          const waktu = document.createElement('div');
+          waktu.className = 'catatan-waktu';
+          waktu.textContent = new Date(c.created_at).toLocaleString('id-ID', {
+            dateStyle: 'long',
+            timeStyle: 'short'
+          });
+
+          kartu.append(isi, waktu);
+          daftarCatatan.appendChild(kartu);
+        }
+      } catch (err) {
+        statusCatatan.textContent = 'Gagal memuat catatan.';
+      }
+    }
+
+    // Klik "Simpan": kirim isi catatan ke server, lalu muat ulang daftar
+    formCatatan.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const isi = isiCatatan.value.trim();
+      if (!isi) return;
+
+      simpanCatatan.disabled = true;
+      statusCatatan.textContent = 'Menyimpan...';
+
+      try {
+        const res = await fetch('/api/catatan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isi })
+        });
+        if (!res.ok) throw new Error('gagal');
+        tutupForm();
+        await muatCatatan();
+      } catch (err) {
+        statusCatatan.textContent = 'Gagal menyimpan catatan. Coba lagi.';
+      }
+
+      simpanCatatan.disabled = false;
+    });
+
+    muatCatatan();
   </script>
 </body>
 </html>
