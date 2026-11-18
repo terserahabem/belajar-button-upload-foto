@@ -5,6 +5,7 @@ const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
 
 export default async function handler(req, res) {
   const sql = neon(process.env.DATABASE_URL);
+  console.log('DB ada:', !!process.env.DATABASE_URL, 'awalan:', (process.env.DATABASE_URL || '').slice(0, 13));
 
   if (req.method === 'POST') {
     const type = req.headers['content-type'] || '';
